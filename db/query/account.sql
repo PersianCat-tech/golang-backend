@@ -7,9 +7,10 @@ INSERT INTO accounts (
   $1, $2, $3
 )RETURNING *;
 
--- name: GetAccount :one
+-- name: GetAccountForUpdate :one
 SELECT * FROM accounts
-WHERE id = $1 LIMIT 1;
+WHERE id = $1 LIMIT 1
+FOR UPDATE;
 
 -- name: ListAccounts :many
 SELECT * FROM accounts

@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,8 @@ func TestTransferTx(t *testing.T) {
 	account1 := createRandomAccount(t)
 	account2 := createRandomAccount(t)
 
+	fmt.Println(">>before:", account1.Balance, account2.Balance)
+
 	n := 5
 	amount := int64(10)
 
@@ -20,6 +23,8 @@ func TestTransferTx(t *testing.T) {
 	results := make(chan TransferTxResult)
 
 	for i := 0; i < n; i++ {
+		tx := fmt.Sprintf("tx %d", i+1)
+		
 		go func() {
 			result, err := store.TransferTx(context.Background(), TransferTxParms{
 				FromAccountID: account1.ID,
@@ -33,6 +38,7 @@ func TestTransferTx(t *testing.T) {
 	}
 
 	//check results outside
+	existed := make(map[int]bool)
 	for i := 0; i < n; i++ {
 		err := <-errs
 		require.NoError(t, err)
@@ -70,7 +76,41 @@ func TestTransferTx(t *testing.T) {
 		require.NotZero(t, toEntry.CreatedAt)
 		_, err = store.GetEntry(context.Background(), toEntry.ID)
 		require.NoError(t, err)
+		
+		//check accounts
+		fromAccount := result.FromAccount
+		require.NotEmpty(t, fromAccount)
+		require.Equal(t, account1.ID, fromAccount.ID)
 
+		toAccount := result.ToAccount
+		require.NotEmpty(t, toAccount)
+		require.Equal(t, account2.ID, toAccount.ID)
+		
 		//TODO: check accounts' balance
+		fmt.Println(">>tx:", fromAccount.Balance, toAccount.Balance)
+
+		diff1 := account1.Balance - fromAccount.Balance	//从account1中流出的金额
+		diff2 := toAccount.Balance - account2.Balance	//增加到account2的金额
+		require.Equal(t, diff1, diff2)	//事务正常执行则diff1与diff2相等
+		require.True(t, diff1 > 0)
+		require.True(t, diff1 % amount == 0)	//转出的金额以amount为基本单位
+
+		k := int(diff1 / amount)
+		require.True(t, k >= 1 && k <= n)
+
+		require.NotContains(t, existed, k)
+		existed[k] = true
 	}
+
+	//check the final updated balances 
+	updateAccount1, err := testQueries.GetAccountForUpdate(context.Background(), account1.ID)
+	require.NoError(t, err)
+
+	updateAccount2, err := testQueries.GetAccountForUpdate(context.Background(), account2.ID)
+	require.NoError(t, err)
+
+	fmt.Println(">>after:", updateAccount1.Balance, updateAccount2.Balance)
+
+	require.Equal(t, account1.Balance - int64(n)*amount, updateAccount1.Balance)
+	require.Equal(t, account2.Balance + int64(n)*amount, updateAccount2.Balance)
 }
