@@ -16,17 +16,18 @@ func TestTransferTx(t *testing.T) {
 
 	fmt.Println(">>before:", account1.Balance, account2.Balance)
 
-	n := 5
+	n := 5	//为了调试并发，暂时将n修改为2
 	amount := int64(10)
 
 	errs := make(chan error)
 	results := make(chan TransferTxResult)
 
 	for i := 0; i < n; i++ {
-		tx := fmt.Sprintf("tx %d", i+1)
+		txName := fmt.Sprintf("tx %d", i+1)
 		
 		go func() {
-			result, err := store.TransferTx(context.Background(), TransferTxParms{
+			ctx := context.WithValue(context.Background(), txKey, txName)
+			result, err := store.TransferTx(ctx, TransferTxParms{
 				FromAccountID: account1.ID,
 				ToAccountID: account2.ID,
 				Amount: amount, 
@@ -103,10 +104,10 @@ func TestTransferTx(t *testing.T) {
 	}
 
 	//check the final updated balances 
-	updateAccount1, err := testQueries.GetAccountForUpdate(context.Background(), account1.ID)
+	updateAccount1, err := testQueries.GetAccount(context.Background(), account1.ID)
 	require.NoError(t, err)
 
-	updateAccount2, err := testQueries.GetAccountForUpdate(context.Background(), account2.ID)
+	updateAccount2, err := testQueries.GetAccount(context.Background(), account2.ID)
 	require.NoError(t, err)
 
 	fmt.Println(">>after:", updateAccount1.Balance, updateAccount2.Balance)
