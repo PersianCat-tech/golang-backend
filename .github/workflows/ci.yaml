@@ -23,7 +23,7 @@ jobs:
       id: go
 
     - name: Check out code into the go module directory
-    - uses: actions/checkout@v4
+      uses: actions/checkout@v4
 
     # - name: Build
     #   run: go build -v ./...
